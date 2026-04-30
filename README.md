@@ -27,6 +27,7 @@ The server speaks MCP at `/mcp` and serves the same tools as a regular HTTP API 
 - [Authoring strategies](#authoring-strategies)
 - [Bootstrapping a config from a real app](#bootstrapping-a-config-from-a-real-app)
 - [Adding a new profile (walkthrough)](#adding-a-new-profile-walkthrough)
+- [Pair with Forbin (interactive client)](#pair-with-forbin-interactive-client)
 - [Project layout](#project-layout)
 - [Limitations](#limitations)
 
@@ -81,6 +82,8 @@ Output (abridged):
 ```
 
 The MCP endpoint is at `http://localhost:8001/mcp`. Standard FastAPI docs at `/docs`, `/redoc`, `/openapi.json`.
+
+> **Tip:** Pair this with [**Forbin**](https://github.com/chris-colinsky/forbin-mcp), an interactive CLI for MCP servers, to browse and call your mock's tools without writing any client code. See [Pair with Forbin](#pair-with-forbin-interactive-client) below.
 
 ---
 
@@ -622,7 +625,71 @@ To mock an endpoint `GET /widgets/{id}`:
 
    Same `id` → same response.
 
-4. **(Optional) connect an MCP client to** `http://localhost:8002/mcp` and you'll see `get_widget` listed as a tool.
+4. **(Optional) connect an MCP client to** `http://localhost:8002/mcp` and you'll see `get_widget` listed as a tool. The fastest way to do this is [Forbin](https://github.com/chris-colinsky/forbin-mcp) — see below.
+
+---
+
+## Pair with Forbin (interactive client)
+
+**[Forbin](https://github.com/chris-colinsky/forbin-mcp)** is the companion repo to this one — an interactive CLI for testing remote MCP servers. It connects, lists tools, lets you inspect their schemas, and calls them with type-aware parameter prompts. Both projects speak vanilla MCP, so no special integration is required.
+
+Typical workflow while authoring a profile:
+
+```
+┌──────────────────────────┐         MCP / HTTP          ┌──────────────────────┐
+│   mock-mcp-server        │ ◄─────────────────────────► │   Forbin (CLI)       │
+│   (this repo)            │   localhost:8001/mcp        │   forbin-mcp repo    │
+│   serves authored YAML   │   localhost:8001/health     │   browse + call      │
+└──────────────────────────┘                             └──────────────────────┘
+```
+
+### Walkthrough
+
+```bash
+# terminal 1 — run the mock
+uv run mock-mcp --config monthly-report
+
+# terminal 2 — install + run Forbin (one-time install)
+pipx install forbin-mcp                         # or: brew tap chris-colinsky/forbin-mcp && brew install forbin-mcp
+forbin                                          # first run prompts for connection settings
+```
+
+When Forbin's first-run wizard asks for connection details, point it at your mock:
+
+| Forbin field | Value for `monthly-report` profile |
+|---|---|
+| `MCP_SERVER_URL` | `http://localhost:8001/mcp` |
+| `MCP_HEALTH_URL` | `http://localhost:8001/health` *(optional — Forbin probes it before connecting; useful if you put the mock on Fly/Render later)* |
+| `MCP_TOKEN` | `mock-test-token` *(or whatever you set via `BEARER_TOKEN`)* |
+
+You'll land in Forbin's tool browser:
+
+```
+Available Tools
+
+   1. generate_report - Generate Report
+
+Commands:
+  [number] - Select a tool
+  [r]      - Run tool         (after selecting one)
+  [d]      - View details     (after selecting one)
+  ...
+```
+
+Press `1` → `r`, type `report_month=2025-06` at the prompt, and Forbin will route the call through MCP and pretty-print the synthesized response. Iterating on a YAML profile becomes:
+
+1. Edit `configs/<profile>.yaml`
+2. Restart the mock (Ctrl-C, re-run `mock-mcp`)
+3. In Forbin, press `r` again — same args, fresh response
+
+### Why this is the recommended way to test profiles
+
+- **No HTTP boilerplate.** No curl flags, no JSON-by-hand for MCP requests, no session-id management.
+- **Schema inspection.** Press `d` to see the exact tool schema your agent will see — the same one this framework derives from your authored OAS.
+- **Clipboard handoff.** Press `c` after a response to copy it; useful for diffing real-vs-mock outputs or pasting into bug reports.
+- **Multi-profile parity.** Forbin's profile/environment system lets you keep `local-mock`, `staging`, `prod` configurations side-by-side — switch with `p` mid-session to verify your mock's responses match the real server's shape.
+
+For Forbin's full docs (config wizard, profile management, CI usage), see [chris-colinsky/forbin-mcp](https://github.com/chris-colinsky/forbin-mcp).
 
 ---
 
