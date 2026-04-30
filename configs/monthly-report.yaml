@@ -1,0 +1,275 @@
+openapi: 3.1.0
+info:
+  title: Monthly Summary Report Generator
+  description: Generates a returns and invoice summary report for all importer brands in a specified month.
+  version: 1.0.0
+
+# --- mock-mcp framework extensions ---------------------------------------
+
+x-mock-port: 8001
+
+x-mock-auth:
+  type: bearer
+  token_env: BEARER_TOKEN
+  default: mock-test-token
+
+x-mock-mcp:
+  mount_path: /mcp
+  exclude_tags: [root, health]
+  forward_headers: [authorization]
+
+# --- API surface ---------------------------------------------------------
+
+paths:
+  /reports/generate:
+    get:
+      tags: [report]
+      summary: Generate Report
+      operationId: generate_report
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: report_month
+          in: query
+          required: true
+          description: Report month in YYYY-MM format (e.g., '2025-06')
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+            title: Report Month
+            description: Report month in YYYY-MM format (e.g., '2025-06')
+        - name: use_preview_db
+          in: query
+          required: false
+          description: Whether to use preview database instead of production
+          schema:
+            type: boolean
+            default: false
+            title: Use Preview Db
+            description: Whether to use preview database instead of production
+
+      x-mock-validate:
+        - field: report_month
+          type: past_month_utc
+          message: report_month must be a past month (current month and future are not allowed)
+
+      x-mock-dynamic:
+        seed_from: query.report_month
+        # Eval order matches the original Python generator so RNG stream and
+        # value ranges line up: brand counts → platform earnings → derived
+        # delta + invoice splits.
+        response:
+          success: { static: true }
+          message: { static: Monthly report generated successfully }
+          report_month: { from: query.report_month }
+          generated_at: { now: true }
+          output_file_path:
+            template:
+              format: "s3://mock-bucket/reports/latest/environment={env}/year={year}/month={month}/monthly_summary_report.csv"
+              vars:
+                env:
+                  from:
+                    path: query.use_preview_db
+                    map: { true: preview, false: prod }
+                year:
+                  from: { path: query.report_month, split: '-', index: 0 }
+                month:
+                  from: { path: query.report_month, split: '-', index: 1 }
+          summary_stats:
+            brands_by_platform:
+              Impact:  { random_int: [20, 30] }
+              Rakuten: { random_int: [25, 40] }
+              CJ:      { random_int: [25, 35] }
+              Howl:    { random_int: [10, 20] }
+            total_platform_earnings:
+              random_float:
+                range: [200000, 500000]
+                round: 2
+            environment:
+              from:
+                path: query.use_preview_db
+                map: { true: preview, false: prod }
+            # placeholders — derived below overwrites these in declared order
+            total_brands: { static: 0 }
+            total_link_adjusted_spend: { static: 0 }
+            total_link_delta: { static: 0 }
+            draft_invoice_summary:
+              "YES":  { static: 0 }
+              "NO":   { static: 0 }
+              "DONE": { static: 0 }
+
+        derived:
+          # total_brands = sum of platform counts (no RNG draw)
+          - path: /summary_stats/total_brands
+            value:
+              sum_of: /summary_stats/brands_by_platform
+
+          # adjusted_spend = earnings * (1 - U(0.001, 0.01))     [RNG draw #6]
+          - path: /summary_stats/total_link_adjusted_spend
+            value:
+              round:
+                digits: 2
+                value:
+                  mul:
+                    - { ref: /summary_stats/total_platform_earnings }
+                    - sub: [1, { random_float: [0.001, 0.01] }]
+
+          # delta = earnings - adjusted_spend                    (no RNG)
+          - path: /summary_stats/total_link_delta
+            value:
+              round:
+                digits: 2
+                value:
+                  sub:
+                    - { ref: /summary_stats/total_platform_earnings }
+                    - { ref: /summary_stats/total_link_adjusted_spend }
+
+          # DONE: randint(5, total_brands * 0.2)                 [RNG draw #7]
+          - path: /summary_stats/draft_invoice_summary/DONE
+            value:
+              random_int:
+                - 5
+                - { to_int: { mul: [{ ref: /summary_stats/total_brands }, 0.2] } }
+
+          # YES: randint(total_brands * 0.3, total_brands * 0.6) [RNG draw #8]
+          - path: /summary_stats/draft_invoice_summary/YES
+            value:
+              random_int:
+                - { to_int: { mul: [{ ref: /summary_stats/total_brands }, 0.3] } }
+                - { to_int: { mul: [{ ref: /summary_stats/total_brands }, 0.6] } }
+
+          # NO: total_brands - DONE - YES                        (no RNG)
+          - path: /summary_stats/draft_invoice_summary/NO
+            value:
+              to_int:
+                sub:
+                  - { ref: /summary_stats/total_brands }
+                  - { ref: /summary_stats/draft_invoice_summary/DONE }
+                  - { ref: /summary_stats/draft_invoice_summary/YES }
+
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyReportResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+
+# --- schemas (identical to the real server) -----------------------------
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    HTTPValidationError:
+      type: object
+      title: HTTPValidationError
+      properties:
+        detail:
+          type: array
+          title: Detail
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      title: ValidationError
+      required: [loc, msg, type]
+      properties:
+        loc:
+          type: array
+          title: Location
+          items:
+            anyOf:
+              - { type: string }
+              - { type: integer }
+        msg: { type: string, title: Message }
+        type: { type: string, title: Error Type }
+
+    ReportSummaryStats:
+      type: object
+      title: ReportSummaryStats
+      description: Summary statistics for the generated report.
+      required:
+        - total_brands
+        - total_platform_earnings
+        - total_link_adjusted_spend
+        - total_link_delta
+        - brands_by_platform
+        - draft_invoice_summary
+        - environment
+      properties:
+        total_brands:
+          type: integer
+          title: Total Brands
+          description: Total number of brands in the report
+        total_platform_earnings:
+          type: number
+          title: Total Platform Earnings
+          description: Total earnings from all platforms
+        total_link_adjusted_spend:
+          type: number
+          title: Total Link Adjusted Spend
+          description: Total adjusted spend from Link
+        total_link_delta:
+          type: number
+          title: Total Link Delta
+          description: Total delta between platforms and Link
+        brands_by_platform:
+          type: object
+          title: Brands By Platform
+          description: Count of brands by platform
+          additionalProperties: { type: integer }
+        draft_invoice_summary:
+          type: object
+          title: Draft Invoice Summary
+          description: Count of brands by draft invoice status
+          additionalProperties: { type: integer }
+        environment:
+          type: string
+          title: Environment
+          description: Database environment used (prod/preview)
+
+    MonthlyReportResponse:
+      type: object
+      title: MonthlyReportResponse
+      description: Response model for monthly summary reports.
+      required: [success, message, report_month, generated_at]
+      properties:
+        success:
+          type: boolean
+          title: Success
+          description: Whether the report generation was successful
+        message:
+          type: string
+          title: Message
+          description: Status message
+        report_month:
+          type: string
+          title: Report Month
+          description: The month for which the report was generated
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+          description: Timestamp when the report was generated
+        output_file_path:
+          anyOf:
+            - { type: string }
+            - { type: 'null' }
+          title: Output File Path
+          description: Path to the generated CSV file
+        summary_stats:
+          anyOf:
+            - $ref: '#/components/schemas/ReportSummaryStats'
+            - { type: 'null' }
+          description: Summary statistics
