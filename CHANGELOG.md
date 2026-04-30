@@ -1,0 +1,65 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-04-30
+
+Initial release. The repo started as a hardcoded mock of one specific
+report-generation tool; this version is a generalized framework where any
+mock server is described by an OpenAPI 3.1 YAML profile under `configs/`.
+
+### Added
+
+- **Config-driven framework.** Each profile is a standard OAS 3.1 document
+  plus a small set of `x-mock-*` extensions that describe the mock behavior.
+- **CLI** — `mock-mcp --config <profile>` resolves a profile name against
+  `configs/<name>.yaml` and starts a server. Hard-errors with exit 2 on
+  missing/invalid configs; no implicit default.
+- **Top-level extensions:** `x-mock-port`, `x-mock-auth` (bearer with
+  env-var override), `x-mock-mcp` (mount path, header forwarding,
+  excluded tags).
+- **Per-operation extensions:** `x-mock-static` (literal response),
+  `x-mock-dynamic` (recipe tree + derived expressions), `x-mock-validate`
+  (custom request validators). The framework enforces that each operation
+  defines exactly one of `x-mock-static` or `x-mock-dynamic`.
+- **Recipe catalog:** `static`, `random_int`, `random_float`,
+  `random_choice`, `faker`, `from` (with `slice`, `split`, `map`),
+  `now`, `template`.
+- **Derived DSL:** `ref`, `sum`, `sum_of`, `sub`, `mul`, `div`, `round`,
+  `to_int`, `min`, `max`, plus a `delete` action for cleaning up scratch
+  fields. Supports cross-field invariants (sums, derived ratios,
+  remainders).
+- **Determinism via `seed_from`.** Resolved request values are SHA-256
+  hashed to seed the RNG and Faker, so output is reproducible across
+  processes (survives `PYTHONHASHSEED` randomization). The one
+  intentionally non-deterministic recipe is `{now: true}`.
+- **MCP server at `/mcp`,** built directly on the `mcp` Python SDK with
+  the streamable HTTP transport. The MCP tool schema is built from the
+  authored OAS dict — not from FastAPI route introspection — so the
+  contract you write is what tools see.
+- **Built-in custom validator:** `past_month_utc` (used by the bundled
+  `monthly-report` profile to mirror the real server's "past month only"
+  rule).
+- **Bundled `monthly-report` profile** as the framework's expressiveness
+  test. Reproduces the previous hardcoded behavior — same input ranges,
+  same sum/delta invariants, same auth — entirely from YAML.
+- **Comprehensive README** with feature reference, recipe and derived
+  catalogs, authoring strategies, a "your first profile" walkthrough,
+  and a guide for pairing with the [Forbin](https://github.com/chris-colinsky/forbin-mcp)
+  interactive MCP CLI.
+
+### Removed
+
+- **`fastapi-mcp` dependency.** The previous hardcoded server delegated
+  the MCP tool surface to fastapi-mcp's FastAPI-route introspection.
+  That fit poorly once routes became config-driven, so the framework now
+  talks MCP directly via the lower-level `mcp` SDK. No more monkey-patching
+  or dynamic Pydantic-model generation.
+
+[Unreleased]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/chris-colinsky/mock-mcp-server/releases/tag/v0.1.0
