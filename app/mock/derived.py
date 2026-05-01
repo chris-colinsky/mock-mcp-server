@@ -22,10 +22,11 @@ Expressions:
 Paths use RFC-6901 JSON Pointer ('/foo/0/bar'). `~0` and `~1` are
 escapes for `~` and `/` respectively.
 """
+
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
-
 
 EXPR_KEYS = {
     "ref",
@@ -131,7 +132,7 @@ def _op_max(arg: list, ctx) -> Any:
     return max(evaluate(x, ctx) for x in arg)
 
 
-_OPS = {
+_OPS: dict[str, Callable[[Any, Any], Any]] = {
     "ref": _op_ref,
     "sum": _op_sum,
     "sum_of": _op_sum_of,

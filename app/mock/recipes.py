@@ -11,15 +11,16 @@ are evaluated via the derived expression evaluator, so recipes and
 derived expressions compose. To avoid a circular import, the engine
 injects the derived evaluator as `expr_eval` on the Context.
 """
+
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from faker import Faker
-
 
 RECIPE_KEYS = {
     "static",
@@ -41,8 +42,8 @@ class Context:
     faker: Faker
     request: dict  # {"query": {...}, "path": {...}, "body": ...}
     root: dict = field(default_factory=dict)  # mutated as response is built; used by `ref`
-    expr_eval: Callable[[Any, "Context"], Any] | None = None
-    recipe_eval: Callable[[Any, "Context"], Any] | None = None
+    expr_eval: Callable[[Any, Context], Any] | None = None
+    recipe_eval: Callable[[Any, Context], Any] | None = None
 
 
 def is_recipe(node: Any) -> bool:
@@ -110,7 +111,7 @@ def _h_faker(arg: Any, ctx: Context) -> Any:
         provider = arg["provider"]
         args = arg.get("args", [])
         kwargs = arg.get("kwargs", {})
-    method = ctx.faker
+    method: Any = ctx.faker
     for part in provider.split("."):
         method = getattr(method, part)
     return method(*args, **kwargs)
@@ -139,8 +140,10 @@ def _h_from(arg: Any, ctx: Context) -> Any:
 
     if slice_spec is not None:
         if not isinstance(value, str) or not isinstance(slice_spec, list) or len(slice_spec) != 2:
-            raise ValueError(f"from.slice requires a string value and [start, end] pair, got {value!r}")
-        value = value[slice_spec[0]:slice_spec[1]]
+            raise ValueError(
+                f"from.slice requires a string value and [start, end] pair, got {value!r}"
+            )
+        value = value[slice_spec[0] : slice_spec[1]]
 
     if split_sep is not None:
         if split_index is None:
@@ -158,21 +161,38 @@ def _h_from(arg: Any, ctx: Context) -> Any:
 
 def _h_now(arg: Any, ctx: Context) -> str:
     """Always returns current ISO-8601 UTC timestamp. The one non-deterministic recipe."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _h_template(arg: dict, ctx: Context) -> str:
     """
     Python `str.format`-style interpolation with named substitutions.
 
-    {template: {format: "year={year}/month={month}", vars: {year: <recipe>, month: <recipe>}}}
+    {template: {format: "year={year}/month={month}", vars: {year: <recipe-or-expr>, month: ...}}}
+
+    Each var value may be a recipe ({faker, random_*, from, ...}), a derived
+    expression ({ref, sum, ...}), or a literal. Derived expressions are useful
+    for pulling already-generated response fields into the rendered string —
+    e.g. {ref: /metrics/total} works once the response tree has populated
+    `/metrics/total` (i.e. when the template is applied via a derived entry
+    rather than during the initial response walk).
     """
     if not isinstance(arg, dict) or "format" not in arg:
         raise ValueError("template recipe requires {format: ..., vars: {...}}")
     fmt = arg["format"]
     vars_spec = arg.get("vars", {})
-    resolved = {k: walk(v, ctx) for k, v in vars_spec.items()}
+    resolved = {k: _resolve_template_var(v, ctx) for k, v in vars_spec.items()}
     return fmt.format(**resolved)
+
+
+def _resolve_template_var(v: Any, ctx: Context) -> Any:
+    """Resolve one template var: try recipe, then derived expression, else walk."""
+    if is_recipe(v):
+        return evaluate(v, ctx)
+    if isinstance(v, dict) and ctx.expr_eval is not None:
+        # Derived expression like {ref: ...}, {sum: ...}, etc.
+        return ctx.expr_eval(v, ctx)
+    return walk(v, ctx)
 
 
 _HANDLERS = {

@@ -1,0 +1,43 @@
+# Pre-commit hooks for mock-mcp-server.
+# Install: uv run pre-commit install
+# Run manually: uv run pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: mixed-line-ending
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.8
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-pyyaml
+        args: [--ignore-missing-imports]
+
+  # Loads + builds every YAML config under configs/. Catches typos in the
+  # x-mock-* surface that pure JSON Schema validation can't.
+  - repo: local
+    hooks:
+      - id: validate-configs
+        name: validate config profiles
+        entry: uv run pytest tests/test_configs.py
+        language: system
+        pass_filenames: false
+        files: ^(configs/.*\.ya?ml|app/.*\.py)$

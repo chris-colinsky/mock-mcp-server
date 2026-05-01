@@ -10,10 +10,12 @@ x-mock-validate:
 
 Validators receive the resolved value and raise ValueError on failure.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 
 def _past_month_utc(value: Any) -> None:
@@ -24,7 +26,7 @@ def _past_month_utc(value: Any) -> None:
         d = datetime.strptime(value + "-01", "%Y-%m-%d")
     except ValueError as exc:
         raise ValueError("must be a valid YYYY-MM date") from exc
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if (d.year, d.month) >= (now.year, now.month):
         raise ValueError("must be a past month (current month and future are not allowed)")
 

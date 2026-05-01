@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Test suite** under `tests/` (~90 tests covering recipes, derived DSL,
+  engine determinism, custom validators, MCP tool-list conversion, config
+  loading, and end-to-end FastAPI TestClient flows).
+- **`make` workflow** with `install-dev`, `test`, `test-coverage`, `lint`,
+  `format`, `format-check`, `typecheck`, `validate-configs`, `check`,
+  `pre-commit-install`, `clean`, `build`, `publish`, `run`. `make ci`
+  is the entrypoint used by GitHub Actions.
+- **`make validate-configs`** target: parametrized pytest that loads and
+  builds every YAML profile under `configs/`. Catches typos in the
+  `x-mock-*` surface that pure JSON-Schema validation can't.
+- **Pre-commit hooks** (`.pre-commit-config.yaml`): trailing-whitespace,
+  end-of-file-fixer, YAML/JSON/TOML check, ruff (with autofix), ruff-format,
+  mypy, plus a local hook that runs `validate-configs` on YAML or app
+  changes.
+- **GitHub Actions CI** (`.github/workflows/ci.yml`): format check, lint,
+  type check, config validation, and full pytest suite on every push and
+  pull request to `main`.
+- **GitHub Actions release workflow** (`.github/workflows/release.yml`):
+  on `v*.*.*` tag push, runs CI, builds sdist/wheel, extracts the matching
+  section from CHANGELOG.md, and creates a GitHub release. Stub jobs for
+  PyPI Trusted Publishing and a Homebrew tap update are commented out;
+  uncomment when ready.
+- **JSON Schema for IDE validation** (`schemas/mock-mcp-config.schema.json`).
+  Profiles include a `# yaml-language-server: $schema=...` directive at the
+  top so editors with YAML schema support (VS Code via redhat.yaml, PyCharm
+  via JSON Schema Mappings) flag unknown `x-mock-*` keys, typos, and bad
+  shapes inline.
+- **Ruff and mypy configuration** in `pyproject.toml` (line-length 100,
+  py313 target, sensible mypy strictness).
+
+### Changed
+
+- **`pyproject.toml` version corrected from `2.0.0` → `0.1.0`** to match
+  the tagged release. Adds `[project.urls]`, classifiers, MIT license,
+  and a `[dependency-groups] dev` group with ruff, mypy, pre-commit, and
+  pytest.
+- **`template` recipe now evaluates derived expressions inside `vars`.**
+  Previously `{ref: /foo}` inside a template's vars was treated as a
+  literal dict and rendered via `repr()`. It's now resolved through the
+  derived-expression evaluator. Affects `template` recipes that reference
+  other generated fields. Templates that only use request-side recipes
+  (`from`, `faker`, `now`, `random_*`) are unchanged.
+
+### Added
+
+- **Second bundled profile: `configs/terravita-sop.yaml`** — mocks the
+  Terravita Sales & Operations Planning API
+  (https://github.com/chris-colinsky/deterministic-ai-agent-pattern).
+  Demonstrates: a variable-shape response with a SKU list, `template`
+  inside `derived` to weave computed metrics into a markdown LLM briefing,
+  and Faker-generated SKU identifiers.
+
 ## [0.1.0] - 2026-04-30
 
 Initial release. The repo started as a hardcoded mock of one specific

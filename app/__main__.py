@@ -11,6 +11,7 @@ the `configs/` directory as `<name>.yaml` (or `.yml`). The chosen config's
 Hard-errors with a non-zero exit if the profile cannot be resolved or
 fails validation. There is no implicit default config.
 """
+
 from __future__ import annotations
 
 import argparse

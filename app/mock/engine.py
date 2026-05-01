@@ -7,6 +7,7 @@ Workflow:
   2. Walk the `response` tree, evaluating recipes in order they appear.
   3. Apply `derived` entries in order, each writing back into the tree.
 """
+
 from __future__ import annotations
 
 import hashlib

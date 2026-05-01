@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/chris-colinsky/mock-mcp-server/blob/main/schemas/mock-mcp-config.schema.json",
+  "title": "mock-mcp-server config",
+  "description": "OpenAPI 3.1 document with x-mock-* framework extensions, used to define a mock MCP server profile.",
+  "type": "object",
+  "required": ["openapi", "info", "paths"],
+  "properties": {
+    "openapi":     { "type": "string", "pattern": "^3\\.[01]\\.\\d+$" },
+    "info":        { "type": "object" },
+    "paths":       { "type": "object", "patternProperties": { "^/": { "$ref": "#/definitions/PathItem" } } },
+    "components":  { "type": "object" },
+    "tags":        { "type": "array" },
+    "servers":     { "type": "array" },
+    "security":    { "type": "array" },
+    "x-mock-port": {
+      "description": "TCP port the server binds to by default. Overridden by --port.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "x-mock-auth": { "$ref": "#/definitions/MockAuth" },
+    "x-mock-mcp":  { "$ref": "#/definitions/MockMcp" }
+  },
+  "patternProperties": {
+    "^x-": { "description": "OpenAPI specification extension." }
+  },
+  "additionalProperties": true,
+
+  "definitions": {
+    "MockAuth": {
+      "description": "Bearer-token authentication for all authored routes.",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type":      { "type": "string", "enum": ["bearer"] },
+        "token_env": { "type": "string", "description": "Env var that overrides the configured token." },
+        "default":   { "type": "string", "description": "Token used when token_env is unset." }
+      },
+      "additionalProperties": false
+    },
+
+    "MockMcp": {
+      "description": "Settings for the MCP server attached at the configured mount path.",
+      "type": "object",
+      "properties": {
+        "mount_path":      { "type": "string", "default": "/mcp" },
+        "exclude_tags":    { "type": "array", "items": { "type": "string" } },
+        "forward_headers": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+
+    "PathItem": {
+      "type": "object",
+      "patternProperties": {
+        "^(get|post|put|delete|patch|options|head|trace)$": { "$ref": "#/definitions/Operation" }
+      },
+      "additionalProperties": true
+    },
+
+    "Operation": {
+      "type": "object",
+      "properties": {
+        "operationId": { "type": "string" },
+        "tags":        { "type": "array", "items": { "type": "string" } },
+        "summary":     { "type": "string" },
+        "description": { "type": "string" },
+        "parameters":  { "type": "array" },
+        "requestBody": { "type": "object" },
+        "responses":   { "type": "object" },
+        "security":    { "type": "array" },
+
+        "x-mock-static":   { "description": "Literal response object returned verbatim." },
+        "x-mock-dynamic":  { "$ref": "#/definitions/MockDynamic" },
+        "x-mock-validate": { "$ref": "#/definitions/MockValidateList" }
+      },
+      "additionalProperties": true
+    },
+
+    "MockDynamic": {
+      "type": "object",
+      "required": ["response"],
+      "properties": {
+        "seed_from": {
+          "description": "Request path used to seed the deterministic RNG (e.g. 'query.report_month').",
+          "type": "string"
+        },
+        "response": { "description": "Recipe tree for the response body." },
+        "derived":  { "description": "Post-walk derived expressions.", "type": "array" }
+      },
+      "additionalProperties": false
+    },
+
+    "MockValidateList": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/MockValidateEntry" }
+    },
+
+    "MockValidateEntry": {
+      "type": "object",
+      "required": ["field", "type"],
+      "properties": {
+        "field":   { "type": "string", "description": "Query/path parameter name." },
+        "type":    { "type": "string", "description": "Validator id (see app/validators.py)." },
+        "message": { "type": "string", "description": "Optional fallback error message." }
+      },
+      "additionalProperties": false
+    }
+  }
+}

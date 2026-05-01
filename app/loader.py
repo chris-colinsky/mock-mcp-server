@@ -16,9 +16,11 @@ The MCP tool schema is built directly from the authored OAS (see
 app/mcp_server.py), not from FastAPI route introspection — the contract
 you author IS what tools see.
 """
+
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +33,6 @@ from app import auth as auth_mod
 from app import mcp_server as mcp_attach_mod
 from app import validators as validators_mod
 from app.mock import engine as engine_mod
-
 
 CONFIG_DIR = Path(__file__).parent.parent / "configs"
 
@@ -148,7 +149,9 @@ def _register_route(
                 if p.get("required"):
                     raise HTTPException(
                         status_code=422,
-                        detail=[{"loc": ["query", name], "msg": "field required", "type": "missing"}],
+                        detail=[
+                            {"loc": ["query", name], "msg": "field required", "type": "missing"}
+                        ],
                     )
                 if "default" in schema:
                     query[name] = schema["default"]
@@ -156,7 +159,9 @@ def _register_route(
             query[name] = _coerce(raw, schema, ["query", name])
 
         path_values = {
-            p["name"]: _coerce(request.path_params.get(p["name"]), p.get("schema") or {}, ["path", p["name"]])
+            p["name"]: _coerce(
+                request.path_params.get(p["name"]), p.get("schema") or {}, ["path", p["name"]]
+            )
             for p in path_params
         }
 
@@ -177,11 +182,16 @@ def _register_route(
         request_data = {"query": query, "path": path_values}
         if static is not None:
             return engine_mod.generate_static(static)
+        # `_validate` guarantees that exactly one of static/dynamic is set,
+        # so reaching this branch implies `dynamic is not None`.
+        assert dynamic is not None
         return engine_mod.generate(dynamic, request_data)
 
     # Build a FastAPI-decorated handler whose signature reflects the OAS
     # parameters, so the standard OpenAPI page (and request validation) work.
-    handler.__name__ = operation.get("operationId") or f"{method}_{path.strip('/').replace('/', '_')}"
+    handler.__name__ = (
+        operation.get("operationId") or f"{method}_{path.strip('/').replace('/', '_')}"
+    )
 
     dependencies = [auth_dep] if auth_dep else []
     router.add_api_route(
@@ -213,7 +223,9 @@ def _coerce(value: Any, schema: dict, loc: list) -> Any:
     except (TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=422,
-            detail=[{"loc": loc, "msg": f"could not parse as {type_}: {value!r}", "type": "type_error"}],
+            detail=[
+                {"loc": loc, "msg": f"could not parse as {type_}: {value!r}", "type": "type_error"}
+            ],
         ) from exc
 
     if pattern and isinstance(value, str):
@@ -234,7 +246,13 @@ def _coerce(value: Any, schema: dict, loc: list) -> Any:
     if "enum" in schema and value not in schema["enum"]:
         raise HTTPException(
             status_code=422,
-            detail=[{"loc": loc, "msg": f"value must be one of {schema['enum']}", "type": "value_error.enum"}],
+            detail=[
+                {
+                    "loc": loc,
+                    "msg": f"value must be one of {schema['enum']}",
+                    "type": "value_error.enum",
+                }
+            ],
         )
 
     return value
@@ -256,11 +274,11 @@ def _add_health_routes(app: FastAPI) -> None:
 
     @app.get("/health", tags=["health"], summary="Health Check", include_in_schema=True)
     async def _health() -> dict:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         return {
             "status": "healthy",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "version": app.version,
             "database_connections": {"mock": "ok"},
         }

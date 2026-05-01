@@ -8,10 +8,11 @@ x-mock-auth:
 
 If x-mock-auth is absent, the server is unauthenticated.
 """
+
 from __future__ import annotations
 
 import os
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Depends, HTTPException, Request, status
 
@@ -35,7 +36,7 @@ def build_dependency(auth_spec: dict | None) -> Callable | None:
                 detail="Invalid or missing bearer token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        token = header[len("Bearer "):].strip()
+        token = header[len("Bearer ") :].strip()
         if token != expected:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

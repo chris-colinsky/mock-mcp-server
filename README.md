@@ -28,6 +28,8 @@ The server speaks MCP at `/mcp` and serves the same tools as a regular HTTP API 
 - [Bootstrapping a config from a real app](#bootstrapping-a-config-from-a-real-app)
 - [Adding a new profile (walkthrough)](#adding-a-new-profile-walkthrough)
 - [Pair with Forbin (interactive client)](#pair-with-forbin-interactive-client)
+- [IDE setup (PyCharm / VS Code)](#ide-setup-pycharm--vs-code)
+- [Development](#development)
 - [Project layout](#project-layout)
 - [Limitations](#limitations)
 
@@ -372,7 +374,9 @@ output_file_path:
       month: { from: { path: query.report_month, split: '-', index: 1 } }
 ```
 
-Recipes inside `vars` are evaluated first; the resolved values are then substituted into `format`.
+Var values may be recipes (`from`, `faker`, `now`, `random_*`) **or** derived expressions (`ref`, `sum`, etc.). They're evaluated first; the resolved values are then substituted into `format`.
+
+**Rule of thumb on placement:** templates that only reference `query`/`path` or generate fresh values can sit anywhere in the response tree. Templates that use `{ref: /path/to/field}` to pull other generated fields must go in `derived` (not `response`), because `ref` resolves against the *completed* response — and during the initial response walk, that completed response doesn't exist yet. See `configs/terravita-sop.yaml` for a worked example: the LLM briefing's metric placeholders are rendered in `derived` after `metrics` is populated.
 
 ---
 
@@ -473,9 +477,16 @@ The framework prefers the validator's own message; `message:` is a fallback for 
 
 ---
 
-## Worked example: monthly-report
+## Worked examples
 
-The bundled `configs/monthly-report.yaml` exercises every framework feature. Walking through the dynamic generator:
+Two bundled profiles ship as references:
+
+- **`configs/monthly-report.yaml`** — exercises every framework feature: dynamic recipes, derived DSL, sum/delta invariants, custom validators (`past_month_utc`), bearer auth, and seeded determinism.
+- **`configs/terravita-sop.yaml`** — mocks the [Terravita Sales & Operations Planning API](https://github.com/chris-colinsky/deterministic-ai-agent-pattern), demonstrating: variable-shape response with a SKU list, `template` rendering inside `derived` to pull computed values into a markdown LLM briefing, fixed-length list of synthesized records via Faker.
+
+### monthly-report walkthrough
+
+`configs/monthly-report.yaml` Walking through the dynamic generator:
 
 1. **`seed_from: query.report_month`** — same month always produces the same output.
 2. **Brand counts per platform** drawn from realistic ranges.
@@ -693,23 +704,64 @@ For Forbin's full docs (config wizard, profile management, CI usage), see [chris
 
 ---
 
+## IDE setup (PyCharm / VS Code)
+
+Profiles ship with a `# yaml-language-server: $schema=../schemas/mock-mcp-config.schema.json` directive at the top of the file. This lets editors validate the `x-mock-*` extensions and autocomplete known properties.
+
+- **VS Code** — install the [YAML extension by Red Hat](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml). The `$schema` directive is honored automatically.
+- **PyCharm / IntelliJ** — go to *Settings → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings*, add a new mapping with **Schema file**: `schemas/mock-mcp-config.schema.json`, **File path pattern**: `configs/*.yaml`. The directive isn't auto-honored, but the explicit mapping gives the same effect.
+
+Once configured, typos like `sx-mock-dynamic` and unknown properties show up as warnings before you commit.
+
+---
+
+## Development
+
+```bash
+make install-dev           # install runtime + dev deps
+make test                  # run the test suite (~90 tests, <1s)
+make validate-configs      # load + build every YAML profile (catches typos)
+make check                 # format-check + lint + mypy + tests + validate-configs
+make pre-commit-install    # wire up the pre-commit git hook
+make help                  # full target list
+```
+
+CI (`.github/workflows/ci.yml`) runs `make ci` on every push and pull request to `main`. Pushing a `v*.*.*` tag triggers `.github/workflows/release.yml`, which builds the package, extracts the matching CHANGELOG section, and creates a GitHub release.
+
+---
+
 ## Project layout
 
 ```
 mock-mcp-server/
 ├── pyproject.toml
+├── Makefile
+├── .pre-commit-config.yaml
+├── .github/workflows/
+│   ├── ci.yml                   # format / lint / mypy / tests on push+PR
+│   └── release.yml              # build + GitHub release on v*.*.* tag
+├── schemas/
+│   └── mock-mcp-config.schema.json   # JSON Schema for x-mock-* (IDE validation)
 ├── configs/
 │   └── monthly-report.yaml      # bundled profile
-└── app/
-    ├── __main__.py              # CLI: `mock-mcp --config <name>`
-    ├── loader.py                # OAS + x-mock-* → FastAPI app
-    ├── mcp_server.py            # /mcp endpoint, OAS → MCP tools
-    ├── auth.py                  # bearer auth from x-mock-auth
-    ├── validators.py            # registry of custom request validators
-    └── mock/
-        ├── recipes.py           # leaf recipes (random_*, faker, from, …)
-        ├── derived.py           # derived DSL (sum, ref, …)
-        └── engine.py            # orchestrate seed → recipes → derived
+├── app/
+│   ├── __main__.py              # CLI: `mock-mcp --config <name>`
+│   ├── loader.py                # OAS + x-mock-* → FastAPI app
+│   ├── mcp_server.py            # /mcp endpoint, OAS → MCP tools
+│   ├── auth.py                  # bearer auth from x-mock-auth
+│   ├── validators.py            # registry of custom request validators
+│   └── mock/
+│       ├── recipes.py           # leaf recipes (random_*, faker, from, …)
+│       ├── derived.py           # derived DSL (sum, ref, …)
+│       └── engine.py            # orchestrate seed → recipes → derived
+└── tests/
+    ├── test_recipes.py          # leaf-recipe coverage
+    ├── test_derived.py          # derived-op + JSON Pointer coverage
+    ├── test_engine.py           # determinism / seeding
+    ├── test_validators.py       # built-in request validators
+    ├── test_mcp_tools.py        # OAS → MCP tool list conversion
+    ├── test_configs.py          # parametrized: load + build every config in configs/
+    └── test_e2e.py              # FastAPI TestClient against monthly-report
 ```
 
 ---

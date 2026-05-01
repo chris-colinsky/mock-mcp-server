@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schemas/mock-mcp-config.schema.json
 openapi: 3.1.0
 info:
   title: Monthly Summary Report Generator

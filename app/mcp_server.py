@@ -17,6 +17,7 @@ What we own:
   - OAS → MCP tool list (`build_tools`)
   - tool dispatch (call our own FastAPI route, return body as TextContent)
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -31,7 +32,6 @@ from fastapi import FastAPI, Request
 from mcp.server.lowlevel import Server as MCPServer
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
-
 logger = logging.getLogger(__name__)
 
 # Path-template parameters look like /items/{id}; matched per OAS 3.x.
@@ -42,7 +42,9 @@ _PARAM_PATTERN = "{}"
 # OAS → MCP tool list
 
 
-def build_tools(oas: dict, exclude_tags: list[str] | None = None) -> tuple[list[mcp_types.Tool], dict]:
+def build_tools(
+    oas: dict, exclude_tags: list[str] | None = None
+) -> tuple[list[mcp_types.Tool], dict]:
     """
     Convert an OAS dict into (tools, operation_map).
 

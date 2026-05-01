@@ -11,12 +11,15 @@ Used to swap out slow/flaky real tools during agent evaluation runs.
 ## Commands
 
 ```bash
-uv sync                                       # install deps
-uv run mock-mcp --config monthly-report       # run bundled profile
-uv run mock-mcp --config <name> --port 9000   # override port
+make install-dev                              # install runtime + dev deps
+make run                                      # run the bundled monthly-report profile
+make test                                     # full pytest suite
+make validate-configs                         # load + build every YAML profile in configs/
+make check                                    # format-check + lint + mypy + tests + validate-configs
+make pre-commit-install                       # wire up the git hook
 ```
 
-There are no tests, lint config, or CI in this repo.
+CI runs `make ci` (alias for `make check`) on every push/PR to `main`. Releases (push of a `v*.*.*` tag) trigger build + GitHub release with notes auto-extracted from CHANGELOG.md.
 
 ## Architecture — load-bearing invariants
 
