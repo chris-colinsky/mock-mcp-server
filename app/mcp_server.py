@@ -23,12 +23,13 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+from collections.abc import MutableMapping
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 import mcp.types as mcp_types
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from mcp.server.lowlevel import Server as MCPServer
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
@@ -280,8 +281,35 @@ def attach(
     session_manager = StreamableHTTPSessionManager(app=mcp_server, stateless=True)
 
     @app.api_route(mount_path, methods=["GET", "POST", "DELETE"], include_in_schema=False)
-    async def _mcp_endpoint(request: Request):
-        await session_manager.handle_request(request.scope, request.receive, request._send)
+    async def _mcp_endpoint(request: Request) -> Response:
+        # Capture the ASGI messages the session manager emits and rebuild
+        # them as a FastAPI Response. The naive version of this handler —
+        # awaiting `session_manager.handle_request(scope, receive, send)`
+        # directly with the route's own `send` — produces a
+        #   RuntimeError: Unexpected ASGI message 'http.response.start'
+        #   sent, after response already completed
+        # because FastAPI's routing layer also tries to wrap the handler's
+        # `None` return as a default JSONResponse, emitting a second
+        # response.start. Capturing the response into memory and returning
+        # it via the normal Response path side-steps that.
+        #
+        # Trade-off: we lose true streaming. For stateless one-shot MCP
+        # calls (the only mode we use today) this is fine — responses are
+        # short SSE events.
+        captured: dict = {"status": 200, "headers": []}
+        body = bytearray()
+
+        async def capture(message: MutableMapping[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                captured["status"] = message["status"]
+                captured["headers"] = message.get("headers") or []
+            elif message["type"] == "http.response.body":
+                body.extend(message.get("body", b""))
+
+        await session_manager.handle_request(request.scope, request.receive, capture)
+
+        header_dict = {k.decode(): v.decode() for k, v in captured["headers"]}
+        return Response(content=bytes(body), status_code=captured["status"], headers=header_dict)
 
     # The session manager needs to run as part of the FastAPI lifespan.
     @contextlib.asynccontextmanager

@@ -13,10 +13,16 @@ from app.loader import build_app, load_config
 
 
 @pytest.fixture(scope="module")
-def client() -> TestClient:
+def client():
+    """
+    TestClient as a context manager so FastAPI's lifespan fires. The MCP
+    session manager registers itself in the lifespan, so /mcp tests fail
+    with "Task group is not initialized" without this wrapping.
+    """
     config = load_config("monthly-report")
     app = build_app(config)
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.fixture
@@ -154,3 +160,58 @@ def test_openapi_schema_reflects_authored_oas(client: TestClient) -> None:
     assert op["operationId"] == "generate_report"
     # Authored schema names are preserved through to /openapi.json
     assert "MonthlyReportResponse" in schema["components"]["schemas"]
+
+
+# ---- /mcp endpoint: protocol smoke + ASGI hygiene -------------------------
+
+
+def test_mcp_initialize_returns_200_at_bare_path(client: TestClient) -> None:
+    """
+    Regression test for the 'Unexpected ASGI message http.response.start sent
+    after response already completed' error: hitting /mcp directly (no
+    trailing slash, no redirect) must return 200 with the SSE response and
+    must not log a RuntimeError. The handler in app/mcp_server.py now
+    captures the ASGI messages from StreamableHTTPSessionManager and
+    re-emits them via a regular FastAPI Response, which keeps FastAPI's
+    routing layer from double-sending response.start.
+    """
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"},
+        },
+    }
+    r = client.post(
+        "/mcp",
+        json=payload,
+        headers={"Accept": "application/json, text/event-stream"},
+    )
+    assert r.status_code == 200
+    # Response is an SSE event with the initialize result inline.
+    assert "result" in r.text
+    assert "protocolVersion" in r.text
+
+
+def test_mcp_endpoint_streams_sse_content_type(client: TestClient) -> None:
+    """The MCP endpoint should respond with text/event-stream so SSE-aware clients can parse it."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"},
+        },
+    }
+    r = client.post(
+        "/mcp",
+        json=payload,
+        headers={"Accept": "application/json, text/event-stream"},
+    )
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
