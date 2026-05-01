@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/mcp` endpoint no longer dumps a `RuntimeError` per request.** The
+  route was a normal FastAPI handler that delegated to
+  `StreamableHTTPSessionManager.handle_request`, which writes the full
+  ASGI response itself; FastAPI then tried to wrap our `None` return as
+  a default JSONResponse, emitting a second `http.response.start` that
+  uvicorn rejected. Capturing the ASGI messages from the session manager
+  in-memory and returning a real FastAPI Response side-steps the
+  collision. Trade-off: tool-call responses are buffered before return,
+  no SSE streaming on `/mcp` — fine for stateless one-shot MCP calls.
+
+### Added
+
+- **MCP tool-dispatch logging.** Tool calls dispatch to FastAPI routes
+  via in-process httpx ASGI transport, which means uvicorn's access log
+  never sees them. New log line on the uvicorn logger surfaces each
+  dispatch with method, URL, status, and latency:
+
+  ```
+  INFO:     mcp dispatch generate_report -> "GET /reports/generate?report_month=2025-06" 200 (32ms)
+  ```
+
+- **Documentation reorganization.** README slimmed to pitch +
+  quickstart + project layout + limitations. Reference content moved
+  into a topic-organized `docs/` directory:
+
+  - `docs/getting-started.md` — install, run, CLI, multi-instance.
+  - `docs/config-reference.md` — top-level + per-operation `x-mock-*` extensions.
+  - `docs/recipes.md` — leaf-recipe catalog.
+  - `docs/derived.md` — derived DSL operators and patterns.
+  - `docs/validation.md` — three-tier validation guide (OAS keywords, built-in custom validators, writing your own).
+  - `docs/strategies.md` — authoring patterns, footguns, debugging tips.
+  - `docs/ide-setup.md` — PyCharm + VS Code schema setup.
+  - `docs/pairing-with-forbin.md` — interactive client guide.
+  - `docs/development.md` — make targets, tests, pre-commit, CI/release.
+  - `docs/examples/monthly-report.md`, `docs/examples/terravita-sop.md` — bundled profile walkthroughs.
+  - `docs/README.md` — TOC / index.
+
+- **`docs/FUTURE.md`** moved from a local draft into the committed
+  `docs/` tree. Captures the v0.2 interactive-CLI sketch, the eventual
+  browser-UI direction, container-image distribution plans, and open
+  design questions including validator extensibility (curated registry
+  vs predicate DSL vs sandboxed user code).
+
+- **Inline comments in `configs/monthly-report.yaml`** explaining the
+  two-stage validation flow (OAS pattern → `past_month_utc` custom
+  validator).
+
+### Changed
+
+- **`x-mock-validate` validator catalog has a clearer extensibility
+  story.** Documented in `docs/validation.md`: prefer OAS keywords for
+  shape/range checks, use built-in custom validators for runtime-state
+  rules, drop into Python only as a last resort. The current registry
+  ships only `past_month_utc`; future directions for non-developer
+  authoring tracked in `docs/FUTURE.md`.
+
 ## [0.1.1] - 2026-04-30
 
 Development infrastructure, a second bundled profile, and one bug fix.
