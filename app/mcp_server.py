@@ -23,16 +23,27 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import time
+from collections.abc import MutableMapping
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 import mcp.types as mcp_types
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from mcp.server.lowlevel import Server as MCPServer
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 logger = logging.getLogger(__name__)
+
+# Use the *parent* uvicorn logger (not `uvicorn.access`) so dispatch lines
+# render with uvicorn's default INFO formatter but stay distinct from real
+# access-log records. Tool dispatches happen via in-process httpx ASGI
+# transport (no real HTTP, no port hop), so they aren't external access
+# events — putting them on `uvicorn.access` would conflate them with real
+# requests for anything that parses access logs (metrics, audit, etc.).
+# The parent logger gives the same visual format without that conflation.
+_dispatch_logger = logging.getLogger("uvicorn")
 
 # Path-template parameters look like /items/{id}; matched per OAS 3.x.
 _PARAM_PATTERN = "{}"
@@ -162,6 +173,7 @@ def _resolve_refs(node: Any, schemas: dict, seen: set | None = None) -> Any:
 async def _call_via_http(
     client: httpx.AsyncClient,
     op: dict,
+    tool_name: str,
     arguments: dict,
     forward_headers: dict[str, str],
 ) -> str:
@@ -193,7 +205,19 @@ async def _call_via_http(
     if body is not None:
         request_kwargs["json"] = body
 
+    started = time.perf_counter()
     response = await client.request(method, url, **request_kwargs)
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+
+    _dispatch_logger.info(
+        'mcp dispatch %s -> "%s %s" %d (%dms)',
+        tool_name,
+        method,
+        url,
+        response.status_code,
+        elapsed_ms,
+    )
+
     text = response.text
     if response.status_code >= 400:
         return json.dumps({"status": response.status_code, "error": _safe_json(text)})
@@ -274,14 +298,46 @@ def attach(
         except (LookupError, AttributeError):
             pass
 
-        text = await _call_via_http(http_client, op, arguments, headers)
+        text = await _call_via_http(http_client, op, tool_name, arguments, headers)
         return [mcp_types.TextContent(type="text", text=text)]
 
     session_manager = StreamableHTTPSessionManager(app=mcp_server, stateless=True)
 
     @app.api_route(mount_path, methods=["GET", "POST", "DELETE"], include_in_schema=False)
-    async def _mcp_endpoint(request: Request):
-        await session_manager.handle_request(request.scope, request.receive, request._send)
+    async def _mcp_endpoint(request: Request) -> Response:
+        # Capture the ASGI messages the session manager emits and rebuild
+        # them as a FastAPI Response. The naive version of this handler —
+        # awaiting `session_manager.handle_request(scope, receive, send)`
+        # directly with the route's own `send` — produces a
+        #   RuntimeError: Unexpected ASGI message 'http.response.start'
+        #   sent, after response already completed
+        # because FastAPI's routing layer also tries to wrap the handler's
+        # `None` return as a default JSONResponse, emitting a second
+        # response.start. Capturing the response into memory and returning
+        # it via the normal Response path side-steps that.
+        #
+        # Trade-off: we lose true streaming. For stateless one-shot MCP
+        # calls (the only mode we use today) this is fine — responses are
+        # short SSE events.
+        captured: dict = {"status": 200, "headers": []}
+        body = bytearray()
+
+        async def capture(message: MutableMapping[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                captured["status"] = message["status"]
+                captured["headers"] = message.get("headers") or []
+            elif message["type"] == "http.response.body":
+                body.extend(message.get("body", b""))
+
+        await session_manager.handle_request(request.scope, request.receive, capture)
+
+        # Preserve the raw (bytes, bytes) header list from the session
+        # manager: `Response(headers=dict)` would drop duplicate headers
+        # (e.g. multiple set-cookie) and re-encode latin-1 ASGI bytes
+        # through UTF-8.
+        response = Response(content=bytes(body), status_code=captured["status"])
+        response.raw_headers = captured["headers"]
+        return response
 
     # The session manager needs to run as part of the FastAPI lifespan.
     @contextlib.asynccontextmanager

@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-01
+
+### Added
+
+- **`docs/auth.md`** — dedicated reference for bearer-token auth.
+  Covers the `x-mock-auth` block in detail, the documentary-vs-enforced
+  distinction between `x-mock-auth` and OAS `security:` /
+  `securitySchemes`, token-resolution rules, MCP header forwarding from
+  `tools/call` through to dispatched routes, how to disable auth, and
+  a gotchas table. The `config-reference.md` section on auth is now a
+  brief summary that points here.
+
+- **MCP tool-dispatch logging.** Tool calls dispatch to FastAPI routes
+  via in-process httpx ASGI transport, which means uvicorn's access log
+  never sees them. New log line on the uvicorn logger surfaces each
+  dispatch with method, URL, status, and latency:
+
+  ```
+  INFO:     mcp dispatch generate_report -> "GET /reports/generate?report_month=2025-06" 200 (32ms)
+  ```
+
+- **Documentation reorganization.** README slimmed to pitch +
+  quickstart + project layout + limitations. Reference content moved
+  into a topic-organized `docs/` directory:
+
+  - `docs/getting-started.md` — install, run, CLI, multi-instance.
+  - `docs/config-reference.md` — top-level + per-operation `x-mock-*` extensions.
+  - `docs/recipes.md` — leaf-recipe catalog.
+  - `docs/derived.md` — derived DSL operators and patterns.
+  - `docs/validation.md` — three-tier validation guide (OAS keywords, built-in custom validators, writing your own).
+  - `docs/strategies.md` — authoring patterns, footguns, debugging tips.
+  - `docs/ide-setup.md` — PyCharm + VS Code schema setup.
+  - `docs/pairing-with-forbin.md` — interactive client guide.
+  - `docs/development.md` — make targets, tests, pre-commit, CI/release.
+  - `docs/examples/monthly-report.md`, `docs/examples/inventory-briefing.md` — bundled profile walkthroughs.
+  - `docs/README.md` — TOC / index.
+
+- **`docs/FUTURE.md`** moved from a local draft into the committed
+  `docs/` tree. Captures the v0.2 interactive-CLI sketch, the eventual
+  browser-UI direction, container-image distribution plans, and open
+  design questions including validator extensibility (curated registry
+  vs predicate DSL vs sandboxed user code).
+
+- **Inline comments in `configs/monthly-report.yaml`** explaining the
+  two-stage validation flow (OAS pattern → `past_month_utc` custom
+  validator).
+
+### Changed
+
+- **BREAKING: `configs/terravita-sop.yaml` → `configs/inventory-briefing.yaml`.**
+  The original profile name and content referenced a specific source
+  project; both have been scrubbed and the file renamed to a generic
+  `inventory-briefing` so the example doesn't leak the origin. If you
+  were running the old profile by name, update your invocation:
+  `mock-mcp --config inventory-briefing`.
+- **BREAKING: bearer auth removed from the renamed `inventory-briefing`
+  profile.** The scrubbed profile is now intentionally open (no
+  `x-mock-auth` block) so the two bundled profiles demonstrate both
+  modes — auth in `monthly-report`, no auth in `inventory-briefing`.
+  The earlier setup carried a confusing inline comment that
+  contradicted the YAML.
+- **`monthly-report` channel names** renamed from specific real-world
+  affiliate platform names to generic `ChannelA` / `ChannelB` /
+  `ChannelC` / `ChannelD` placeholders. Test suite is unaffected (it
+  asserts on sums and structure, not specific names).
+- **SKU prefix in `inventory-briefing`** changed from `TV-NNN-*` to
+  `SKU-NNN-*`.
+- **`x-mock-validate` validator catalog has a clearer extensibility
+  story.** Documented in `docs/validation.md`: prefer OAS keywords for
+  shape/range checks, use built-in custom validators for runtime-state
+  rules, drop into Python only as a last resort. The current registry
+  ships only `past_month_utc`; future directions for non-developer
+  authoring tracked in `docs/FUTURE.md`.
+
+### Fixed
+
+- **`/mcp` endpoint no longer dumps a `RuntimeError` per request.** The
+  route was a normal FastAPI handler that delegated to
+  `StreamableHTTPSessionManager.handle_request`, which writes the full
+  ASGI response itself; FastAPI then tried to wrap our `None` return as
+  a default JSONResponse, emitting a second `http.response.start` that
+  uvicorn rejected. Capturing the ASGI messages from the session manager
+  in-memory and returning a real FastAPI Response side-steps the
+  collision. Trade-off: tool-call responses are buffered before return,
+  no SSE streaming on `/mcp` — fine for stateless one-shot MCP calls.
+
 ## [0.1.1] - 2026-04-30
 
 Development infrastructure, a second bundled profile, and one bug fix.
@@ -44,11 +130,14 @@ profiles run unchanged.
   Mappings) flag unknown `x-mock-*` keys, typos, and bad shapes inline.
 - **Ruff and mypy configuration** in `pyproject.toml` (line-length 100,
   py313 target, sensible mypy strictness).
-- **Second bundled profile: `configs/terravita-sop.yaml`** — mocks the
-  [Terravita Sales & Operations Planning API](https://github.com/chris-colinsky/deterministic-ai-agent-pattern).
-  Demonstrates a fixed-length SKU list with Faker-generated identifiers
-  and a markdown LLM briefing rendered via `template` inside `derived`
-  (pulls computed metrics through `{ref: ...}` vars).
+- **Second bundled profile** — a Sales & Operations Planning–style
+  briefing endpoint demonstrating a fixed-length SKU list with
+  Faker-generated identifiers and a markdown LLM briefing rendered via
+  `template` inside `derived` (pulls computed metrics through
+  `{ref: ...}` vars). *Note: this profile shipped as
+  `configs/terravita-sop.yaml` at v0.1.1 and was renamed and scrubbed
+  to `configs/inventory-briefing.yaml` in a later release; see the
+  Unreleased section.*
 
 ### Changed
 
@@ -120,6 +209,7 @@ mock server is described by an OpenAPI 3.1 YAML profile under `configs/`.
   talks MCP directly via the lower-level `mcp` SDK. No more monkey-patching
   or dynamic Pydantic-model generation.
 
-[Unreleased]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/chris-colinsky/mock-mcp-server/releases/tag/v0.1.0
