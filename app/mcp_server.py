@@ -36,11 +36,13 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 logger = logging.getLogger(__name__)
 
-# Use uvicorn's already-configured logger so dispatch lines render in the
-# same INFO:     ... format alongside uvicorn's access log. The dispatch
-# happens via in-process httpx ASGI transport (no real HTTP, no port hop)
-# so uvicorn's access log doesn't see it; this gives users equivalent
-# visibility into which tool fired which route.
+# Use the *parent* uvicorn logger (not `uvicorn.access`) so dispatch lines
+# render with uvicorn's default INFO formatter but stay distinct from real
+# access-log records. Tool dispatches happen via in-process httpx ASGI
+# transport (no real HTTP, no port hop), so they aren't external access
+# events — putting them on `uvicorn.access` would conflate them with real
+# requests for anything that parses access logs (metrics, audit, etc.).
+# The parent logger gives the same visual format without that conflation.
 _dispatch_logger = logging.getLogger("uvicorn")
 
 # Path-template parameters look like /items/{id}; matched per OAS 3.x.
@@ -329,8 +331,13 @@ def attach(
 
         await session_manager.handle_request(request.scope, request.receive, capture)
 
-        header_dict = {k.decode(): v.decode() for k, v in captured["headers"]}
-        return Response(content=bytes(body), status_code=captured["status"], headers=header_dict)
+        # Preserve the raw (bytes, bytes) header list from the session
+        # manager: `Response(headers=dict)` would drop duplicate headers
+        # (e.g. multiple set-cookie) and re-encode latin-1 ASGI bytes
+        # through UTF-8.
+        response = Response(content=bytes(body), status_code=captured["status"])
+        response.raw_headers = captured["headers"]
+        return response
 
     # The session manager needs to run as part of the FastAPI lifespan.
     @contextlib.asynccontextmanager

@@ -9,26 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.2] - 2026-05-01
 
-### Changed (breaking — file paths)
-
-- **`configs/terravita-sop.yaml` → `configs/inventory-briefing.yaml`.**
-  The original profile name and content referenced a specific source
-  project; both have been scrubbed and the file renamed to a generic
-  `inventory-briefing` so the example doesn't leak the origin. If you
-  were running the old profile by name, update your invocation:
-  `mock-mcp --config inventory-briefing`.
-- **Bearer auth removed from the renamed `inventory-briefing` profile.**
-  The scrubbed profile is now intentionally open (no `x-mock-auth`
-  block) so the two bundled profiles demonstrate both modes — auth in
-  `monthly-report`, no auth in `inventory-briefing`. The earlier
-  setup carried a confusing inline comment that contradicted the YAML.
-- **`monthly-report` channel names** renamed from specific real-world
-  affiliate platform names to generic `ChannelA` / `ChannelB` /
-  `ChannelC` / `ChannelD` placeholders. Test suite is unaffected (it
-  asserts on sums and structure, not specific names).
-- **SKU prefix in `inventory-briefing`** changed from `TV-NNN-*` to
-  `SKU-NNN-*`.
-
 ### Added
 
 - **`docs/auth.md`** — dedicated reference for bearer-token auth.
@@ -38,20 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tools/call` through to dispatched routes, how to disable auth, and
   a gotchas table. The `config-reference.md` section on auth is now a
   brief summary that points here.
-
-### Fixed
-
-- **`/mcp` endpoint no longer dumps a `RuntimeError` per request.** The
-  route was a normal FastAPI handler that delegated to
-  `StreamableHTTPSessionManager.handle_request`, which writes the full
-  ASGI response itself; FastAPI then tried to wrap our `None` return as
-  a default JSONResponse, emitting a second `http.response.start` that
-  uvicorn rejected. Capturing the ASGI messages from the session manager
-  in-memory and returning a real FastAPI Response side-steps the
-  collision. Trade-off: tool-call responses are buffered before return,
-  no SSE streaming on `/mcp` — fine for stateless one-shot MCP calls.
-
-### Added
 
 - **MCP tool-dispatch logging.** Tool calls dispatch to FastAPI routes
   via in-process httpx ASGI transport, which means uvicorn's access log
@@ -90,12 +56,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING: `configs/terravita-sop.yaml` → `configs/inventory-briefing.yaml`.**
+  The original profile name and content referenced a specific source
+  project; both have been scrubbed and the file renamed to a generic
+  `inventory-briefing` so the example doesn't leak the origin. If you
+  were running the old profile by name, update your invocation:
+  `mock-mcp --config inventory-briefing`.
+- **BREAKING: bearer auth removed from the renamed `inventory-briefing`
+  profile.** The scrubbed profile is now intentionally open (no
+  `x-mock-auth` block) so the two bundled profiles demonstrate both
+  modes — auth in `monthly-report`, no auth in `inventory-briefing`.
+  The earlier setup carried a confusing inline comment that
+  contradicted the YAML.
+- **`monthly-report` channel names** renamed from specific real-world
+  affiliate platform names to generic `ChannelA` / `ChannelB` /
+  `ChannelC` / `ChannelD` placeholders. Test suite is unaffected (it
+  asserts on sums and structure, not specific names).
+- **SKU prefix in `inventory-briefing`** changed from `TV-NNN-*` to
+  `SKU-NNN-*`.
 - **`x-mock-validate` validator catalog has a clearer extensibility
   story.** Documented in `docs/validation.md`: prefer OAS keywords for
   shape/range checks, use built-in custom validators for runtime-state
   rules, drop into Python only as a last resort. The current registry
   ships only `past_month_utc`; future directions for non-developer
   authoring tracked in `docs/FUTURE.md`.
+
+### Fixed
+
+- **`/mcp` endpoint no longer dumps a `RuntimeError` per request.** The
+  route was a normal FastAPI handler that delegated to
+  `StreamableHTTPSessionManager.handle_request`, which writes the full
+  ASGI response itself; FastAPI then tried to wrap our `None` return as
+  a default JSONResponse, emitting a second `http.response.start` that
+  uvicorn rejected. Capturing the ASGI messages from the session manager
+  in-memory and returning a real FastAPI Response side-steps the
+  collision. Trade-off: tool-call responses are buffered before return,
+  no SSE streaming on `/mcp` — fine for stateless one-shot MCP calls.
 
 ## [0.1.1] - 2026-04-30
 
