@@ -19,7 +19,7 @@ Two profiles ship with the repo. Run one:
 uv run mock-mcp --config monthly-report
 ```
 
-The server binds to the port declared in the YAML (`x-mock-port`) — `8001` for `monthly-report`, `8002` for `terravita-sop`. Override with `--port`.
+The server binds to the port declared in the YAML (`x-mock-port`) — `8001` for `monthly-report`, `8002` for `inventory-briefing`. Override with `--port`.
 
 Hit it directly:
 
@@ -38,7 +38,7 @@ Output (abridged):
   "generated_at": "2026-04-30T21:30:00.000000+00:00",
   "output_file_path": "s3://mock-bucket/.../year=2025/month=06/monthly_summary_report.csv",
   "summary_stats": {
-    "brands_by_platform": {"Impact": 26, "Rakuten": 37, "CJ": 25, "Howl": 16},
+    "brands_by_platform": {"ChannelA": 26, "ChannelB": 37, "ChannelC": 25, "ChannelD": 16},
     "total_platform_earnings": 362641.55,
     "environment": "prod",
     "total_brands": 104,
@@ -92,7 +92,7 @@ Each profile binds its own port, so you can run as many in parallel as you want:
 uv run mock-mcp --config monthly-report          # → :8001
 
 # terminal 2
-uv run mock-mcp --config terravita-sop           # → :8002
+uv run mock-mcp --config inventory-briefing      # → :8002
 
 # terminal 3 (same profile twice, override the port)
 uv run mock-mcp --config monthly-report --port 8011

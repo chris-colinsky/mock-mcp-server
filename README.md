@@ -50,6 +50,7 @@ Topic-organized reference under [`docs/`](docs/):
 | [Recipes](docs/recipes.md) | Leaf-recipe catalog (`random_int`, `faker`, `from`, `template`, …). |
 | [Derived DSL](docs/derived.md) | Cross-field operators (`ref`, `sum`, `mul`, …) for invariants. |
 | [Validation](docs/validation.md) | OAS keywords, built-in validators, writing your own. |
+| [Auth](docs/auth.md) | Bearer-token setup, MCP header forwarding, common gotchas. |
 | [Authoring strategies](docs/strategies.md) | Patterns: static vs dynamic, determinism, footguns, walkthrough. |
 | [IDE setup](docs/ide-setup.md) | PyCharm and VS Code schema validation. |
 | [Pairing with Forbin](docs/pairing-with-forbin.md) | Interactive client for testing mocks. |
@@ -63,8 +64,8 @@ Topic-organized reference under [`docs/`](docs/):
 
 | Profile | Demonstrates |
 |---|---|
-| [`configs/monthly-report.yaml`](configs/monthly-report.yaml) | Every framework feature: dynamic recipes, derived DSL, sum/delta invariants, custom validators, bearer auth, seeded determinism. ([walkthrough](docs/examples/monthly-report.md)) |
-| [`configs/terravita-sop.yaml`](configs/terravita-sop.yaml) | Real-world API mock: variable-shape responses, template-in-derived for computed values, Faker-generated structured records. ([walkthrough](docs/examples/terravita-sop.md)) |
+| [`configs/monthly-report.yaml`](configs/monthly-report.yaml) | Authenticated profile demonstrating every framework feature: dynamic recipes, derived DSL, sum/delta invariants, custom validators, bearer auth, seeded determinism. ([walkthrough](docs/examples/monthly-report.md)) |
+| [`configs/inventory-briefing.yaml`](configs/inventory-briefing.yaml) | Open (no-auth) profile demonstrating variable-shape responses, template-in-derived for computed values, and Faker-generated structured records. ([walkthrough](docs/examples/inventory-briefing.md)) |
 
 ## Project layout
 

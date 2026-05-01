@@ -2,7 +2,7 @@
 openapi: 3.1.0
 info:
   title: Monthly Summary Report Generator
-  description: Generates a returns and invoice summary report for all importer brands in a specified month.
+  description: Generates a returns and invoice summary report across multiple sales channels for a specified month.
   version: 1.0.0
 
 # --- mock-mcp framework extensions ---------------------------------------
@@ -98,11 +98,14 @@ paths:
                 month:
                   from: { path: query.report_month, split: '-', index: 1 }
           summary_stats:
+            # Channel names are deliberately generic placeholders. Swap in
+            # real names (e.g. "Wholesale", "Retail", "Marketplace") if you
+            # adapt this profile for a specific use case.
             brands_by_platform:
-              Impact:  { random_int: [20, 30] }
-              Rakuten: { random_int: [25, 40] }
-              CJ:      { random_int: [25, 35] }
-              Howl:    { random_int: [10, 20] }
+              ChannelA: { random_int: [20, 30] }
+              ChannelB: { random_int: [25, 40] }
+              ChannelC: { random_int: [25, 35] }
+              ChannelD: { random_int: [10, 20] }
             total_platform_earnings:
               random_float:
                 range: [200000, 500000]

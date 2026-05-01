@@ -12,6 +12,7 @@ Topic-organized reference for authoring, running, and extending mock MCP server 
 - **[Recipes](recipes.md)** — the leaf-recipe catalog: `static`, `random_int`, `random_float`, `random_choice`, `faker`, `from`, `now`, `template`. With examples.
 - **[Derived DSL](derived.md)** — operators (`ref`, `sum`, `sum_of`, `sub`, `mul`, `div`, `round`, `to_int`, `min`, `max`, `delete`), JSON Pointer paths, common patterns.
 - **[Validation](validation.md)** — three tiers: OAS keywords (try first), built-in custom validators, writing your own.
+- **[Auth](auth.md)** — bearer-token auth setup, MCP header forwarding, the `security:`/`securitySchemes` documentary-vs-enforced distinction, common gotchas.
 - **[Authoring strategies](strategies.md)** — static vs. dynamic, determinism, cross-field invariants, YAML 1.1 footguns, debugging tips, bootstrapping from a real app, walkthrough of adding a new profile.
 
 ## Tooling and integration
@@ -22,7 +23,7 @@ Topic-organized reference for authoring, running, and extending mock MCP server 
 ## Examples
 
 - **[monthly-report](examples/monthly-report.md)** — bundled profile that exercises every framework feature. The framework's smoke-test profile.
-- **[terravita-sop](examples/terravita-sop.md)** — bundled profile mocking a real-world S&OP API. Shows the template-in-derived pattern and Faker-generated structured records.
+- **[inventory-briefing](examples/inventory-briefing.md)** — bundled profile demonstrating an unauthenticated S&OP-style endpoint with a markdown LLM briefing. Shows the template-in-derived pattern, Faker-generated structured records, and the open (no-auth) mode.
 
 ## Project meta
 

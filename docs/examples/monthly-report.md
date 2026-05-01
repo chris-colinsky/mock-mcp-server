@@ -24,7 +24,7 @@ curl -H "Authorization: Bearer mock-test-token" \
 The dynamic generator walks like this (matching the order RNG draws happen):
 
 1. **`seed_from: query.report_month`** — same month always produces the same output. SHA-256 of the value seeds both `random` and Faker.
-2. **Brand counts per platform** — four `random_int` draws (`Impact`, `Rakuten`, `CJ`, `Howl`) within realistic ranges. Determines the eventual total.
+2. **Brand counts per channel** — four `random_int` draws (`ChannelA`, `ChannelB`, `ChannelC`, `ChannelD` — placeholder names; swap in real ones if you adapt this) within realistic ranges. Determines the eventual total.
 3. **`total_platform_earnings`** — uniform float in [200000, 500000], rounded to 2 dp.
 4. **`environment`** — pulled from the `use_preview_db` query param via a `from`+`map` combo.
 5. **`output_file_path`** — built via `template`, with `year` and `month` split out of `report_month` using `from`'s `split` option.

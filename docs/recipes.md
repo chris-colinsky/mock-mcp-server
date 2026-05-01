@@ -135,7 +135,7 @@ Var values may be recipes (`from`, `faker`, `now`, `random_*`) **or** derived ex
 
 Templates that only reference `query`/`path` or generate fresh values can sit anywhere in the response tree. Templates that use `{ref: /path/to/field}` to pull other generated fields must go in `derived` (not `response`), because `ref` resolves against the *completed* response — and during the initial response walk, that completed response doesn't exist yet.
 
-See [`configs/terravita-sop.yaml`](../configs/terravita-sop.yaml) for a worked example: the LLM briefing's metric placeholders are rendered in `derived` after `metrics` is populated.
+See [`configs/inventory-briefing.yaml`](../configs/inventory-briefing.yaml) for a worked example: the LLM briefing's metric placeholders are rendered in `derived` after `metrics` is populated.
 
 ## Recipe + derived composition
 

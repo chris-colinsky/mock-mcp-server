@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (breaking — file paths)
+
+- **`configs/terravita-sop.yaml` → `configs/inventory-briefing.yaml`.**
+  The original profile name and content referenced a specific source
+  project; both have been scrubbed and the file renamed to a generic
+  `inventory-briefing` so the example doesn't leak the origin. If you
+  were running the old profile by name, update your invocation:
+  `mock-mcp --config inventory-briefing`.
+- **Bearer auth removed from the renamed `inventory-briefing` profile.**
+  The scrubbed profile is now intentionally open (no `x-mock-auth`
+  block) so the two bundled profiles demonstrate both modes — auth in
+  `monthly-report`, no auth in `inventory-briefing`. The earlier
+  setup carried a confusing inline comment that contradicted the YAML.
+- **`monthly-report` channel names** renamed from specific real-world
+  affiliate platform names to generic `ChannelA` / `ChannelB` /
+  `ChannelC` / `ChannelD` placeholders. Test suite is unaffected (it
+  asserts on sums and structure, not specific names).
+- **SKU prefix in `inventory-briefing`** changed from `TV-NNN-*` to
+  `SKU-NNN-*`.
+
+### Added
+
+- **`docs/auth.md`** — dedicated reference for bearer-token auth.
+  Covers the `x-mock-auth` block in detail, the documentary-vs-enforced
+  distinction between `x-mock-auth` and OAS `security:` /
+  `securitySchemes`, token-resolution rules, MCP header forwarding from
+  `tools/call` through to dispatched routes, how to disable auth, and
+  a gotchas table. The `config-reference.md` section on auth is now a
+  brief summary that points here.
+
 ### Fixed
 
 - **`/mcp` endpoint no longer dumps a `RuntimeError` per request.** The
@@ -43,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `docs/ide-setup.md` — PyCharm + VS Code schema setup.
   - `docs/pairing-with-forbin.md` — interactive client guide.
   - `docs/development.md` — make targets, tests, pre-commit, CI/release.
-  - `docs/examples/monthly-report.md`, `docs/examples/terravita-sop.md` — bundled profile walkthroughs.
+  - `docs/examples/monthly-report.md`, `docs/examples/inventory-briefing.md` — bundled profile walkthroughs.
   - `docs/README.md` — TOC / index.
 
 - **`docs/FUTURE.md`** moved from a local draft into the committed
@@ -102,11 +132,14 @@ profiles run unchanged.
   Mappings) flag unknown `x-mock-*` keys, typos, and bad shapes inline.
 - **Ruff and mypy configuration** in `pyproject.toml` (line-length 100,
   py313 target, sensible mypy strictness).
-- **Second bundled profile: `configs/terravita-sop.yaml`** — mocks the
-  [Terravita Sales & Operations Planning API](https://github.com/chris-colinsky/deterministic-ai-agent-pattern).
-  Demonstrates a fixed-length SKU list with Faker-generated identifiers
-  and a markdown LLM briefing rendered via `template` inside `derived`
-  (pulls computed metrics through `{ref: ...}` vars).
+- **Second bundled profile** — a Sales & Operations Planning–style
+  briefing endpoint demonstrating a fixed-length SKU list with
+  Faker-generated identifiers and a markdown LLM briefing rendered via
+  `template` inside `derived` (pulls computed metrics through
+  `{ref: ...}` vars). *Note: this profile shipped as
+  `configs/terravita-sop.yaml` at v0.1.1 and was renamed and scrubbed
+  to `configs/inventory-briefing.yaml` in a later release; see the
+  Unreleased section.*
 
 ### Changed
 

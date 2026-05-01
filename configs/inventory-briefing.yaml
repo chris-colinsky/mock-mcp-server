@@ -1,29 +1,32 @@
 # yaml-language-server: $schema=../schemas/mock-mcp-config.schema.json
 openapi: 3.1.0
 info:
-  title: Terravita S&OP API (mock)
+  title: Inventory Briefing API (mock example)
   description: |
-    Mock of the Terravita Sales & Operations Planning briefing endpoint.
-    The real backend reads sales CSV → calculates supply-chain metrics in
-    Pandas → asks an LLM for an executive narrative. This profile returns
-    plausible synthetic data with the same response shape so an agent can
-    be evaluated without an LLM round-trip.
+    Stand-in for a Sales & Operations Planning briefing endpoint. The kind of
+    real backend this might mirror reads sales data, calculates supply-chain
+    metrics (cover, reorder quantity, revenue), and asks an LLM for an
+    executive narrative — all of which would be slow and expensive to invoke
+    repeatedly inside an evaluation harness.
 
-    Source repo this is modeled on:
-    https://github.com/chris-colinsky/deterministic-ai-agent-pattern
+    This profile returns plausible synthetic data with the same response
+    shape so an agent can be evaluated without the LLM round-trip.
   version: 1.0.0
 
 # --- mock-mcp framework extensions ---------------------------------------
 
 x-mock-port: 8002
 
-# The real Terravita backend is unauthenticated; including bearer auth here
-# anyway to demo the framework's auth feature. Drop this block to make the
-# mock open.
-x-mock-auth:
-  type: bearer
-  token_env: BEARER_TOKEN
-  default: mock-test-token
+# This profile is intentionally open (no auth) to demonstrate the framework
+# without it. To turn bearer auth on, add an `x-mock-auth` block here:
+#
+#   x-mock-auth:
+#     type: bearer
+#     token_env: BEARER_TOKEN
+#     default: mock-test-token
+#
+# The bundled `monthly-report.yaml` profile uses that pattern; see
+# docs/config-reference.md for the full reference.
 
 x-mock-mcp:
   mount_path: /mcp
@@ -42,21 +45,19 @@ paths:
       description: |
         Returns the full SOPResponse — KPI metrics, at-risk SKU table,
         and the LLM-authored executive briefing.
-      security:
-        - BearerAuth: []
 
       x-mock-dynamic:
-        # No `seed_from`: the real endpoint takes no params and the LLM call
-        # is non-deterministic, so each request returns a fresh response.
+        # No `seed_from`: the kind of real endpoint this mirrors makes an LLM
+        # call (non-deterministic), so each request returns a fresh response.
         # Add `seed_from: query.seed` plus a corresponding query parameter
         # if you want reproducible output for snapshot testing.
         response:
           status: { static: success }
 
           metrics:
-            # The real total is the sum of Revenue_M4 across the *whole*
-            # catalog (not just at-risk SKUs), so it's larger than the sum
-            # of red_flag_data revenues below.
+            # `total_m4_revenue` represents catalog-wide revenue, not the sum
+            # of `red_flag_data` revenues below — those are a subset (just
+            # the at-risk SKUs), so the catalog total will always be larger.
             total_m4_revenue:
               random_float:
                 range: [180000, 320000]
@@ -70,7 +71,7 @@ paths:
           red_flag_data:
             - SKU:
                 template:
-                  format: "TV-{n}-DRY"
+                  format: "SKU-{n}-DRY"
                   vars:
                     n:
                       faker: { provider: pyint, kwargs: { min_value: 100, max_value: 999 } }
@@ -81,7 +82,7 @@ paths:
 
             - SKU:
                 template:
-                  format: "TV-{n}-RFR"
+                  format: "SKU-{n}-RFR"
                   vars:
                     n:
                       faker: { provider: pyint, kwargs: { min_value: 100, max_value: 999 } }
@@ -92,7 +93,7 @@ paths:
 
             - SKU:
                 template:
-                  format: "TV-{n}-CHL"
+                  format: "SKU-{n}-CHL"
                   vars:
                     n:
                       faker: { provider: pyint, kwargs: { min_value: 100, max_value: 999 } }
@@ -103,7 +104,7 @@ paths:
 
             - SKU:
                 template:
-                  format: "TV-{n}-DRY"
+                  format: "SKU-{n}-DRY"
                   vars:
                     n:
                       faker: { provider: pyint, kwargs: { min_value: 100, max_value: 999 } }
@@ -143,7 +144,7 @@ paths:
                   - This briefing reflects month-4 actuals only; week-level granularity will land in the next sprint.
                   - Reorder quantities assume default safety-stock targets per SKU class.
 
-                  _Generated at {now} by the Terravita S&OP service (mock)._
+                  _Generated at {now} by the inventory briefing service (mock)._
                 vars:
                   total: { ref: /metrics/total_m4_revenue }
                   at_risk: { ref: /metrics/skus_at_risk }
@@ -157,20 +158,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/SOPResponse'
 
-  # NOTE: the real backend has a second endpoint, GET /api/v1/download-pos,
-  # that streams a CSV file. We deliberately don't mock it — file downloads
-  # don't translate cleanly to MCP tool calls (tools return structured
-  # content blocks, not files). A proper MCP-shaped equivalent would be a
-  # `get_pending_purchase_orders` tool returning the rows as a JSON array.
+  # NOTE: a backend like this typically has a second endpoint that streams a
+  # CSV file (e.g. /api/v1/download-pos). We deliberately don't mock that
+  # shape — file downloads don't translate cleanly to MCP tool calls (tools
+  # return structured content blocks, not files). A proper MCP-shaped
+  # equivalent would be something like `get_pending_purchase_orders`
+  # returning the rows as a JSON array.
 
-# --- schemas (mirroring backend/schemas.py) ------------------------------
+# --- schemas -------------------------------------------------------------
 
 components:
-
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
 
   schemas:
 

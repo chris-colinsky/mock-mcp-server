@@ -72,11 +72,11 @@ x-mock-auth:
   default: mock-test-token    # used when token_env is unset
 ```
 
-When present, every authored route requires a valid `Authorization: Bearer <token>` header. The expected token is `os.environ[token_env]` if set, else `default`.
+When present, every authored route requires `Authorization: Bearer <token>`. Token resolution is `os.environ[token_env]` if set, else `default`. The built-in `/`, `/health`, `/mcp`, and `/openapi.json` routes are not auth-protected.
 
-The built-in `/`, `/health`, and `/mcp` routes are **not** auth-protected — they're framework concerns, not part of the authored contract. Headers from MCP `tools/call` requests are forwarded to dispatched HTTP calls (see `forward_headers` below), so configure your MCP client to send `Authorization` and it'll pass through to your authored routes.
+Omit the block entirely to leave the server fully open (the bundled `inventory-briefing` profile demonstrates this).
 
-If you omit `x-mock-auth`, the server is unauthenticated.
+For full coverage — token resolution rules, MCP header forwarding, the `security:` / `securitySchemes` documentary-vs-enforced distinction, common gotchas — see [auth.md](auth.md).
 
 ### `x-mock-mcp` — MCP server settings
 
