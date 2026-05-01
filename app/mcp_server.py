@@ -23,6 +23,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import time
 from collections.abc import MutableMapping
 from typing import Any
 from urllib.parse import urlencode
@@ -34,6 +35,13 @@ from mcp.server.lowlevel import Server as MCPServer
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 logger = logging.getLogger(__name__)
+
+# Use uvicorn's already-configured logger so dispatch lines render in the
+# same INFO:     ... format alongside uvicorn's access log. The dispatch
+# happens via in-process httpx ASGI transport (no real HTTP, no port hop)
+# so uvicorn's access log doesn't see it; this gives users equivalent
+# visibility into which tool fired which route.
+_dispatch_logger = logging.getLogger("uvicorn")
 
 # Path-template parameters look like /items/{id}; matched per OAS 3.x.
 _PARAM_PATTERN = "{}"
@@ -163,6 +171,7 @@ def _resolve_refs(node: Any, schemas: dict, seen: set | None = None) -> Any:
 async def _call_via_http(
     client: httpx.AsyncClient,
     op: dict,
+    tool_name: str,
     arguments: dict,
     forward_headers: dict[str, str],
 ) -> str:
@@ -194,7 +203,19 @@ async def _call_via_http(
     if body is not None:
         request_kwargs["json"] = body
 
+    started = time.perf_counter()
     response = await client.request(method, url, **request_kwargs)
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+
+    _dispatch_logger.info(
+        'mcp dispatch %s -> "%s %s" %d (%dms)',
+        tool_name,
+        method,
+        url,
+        response.status_code,
+        elapsed_ms,
+    )
+
     text = response.text
     if response.status_code >= 400:
         return json.dumps({"status": response.status_code, "error": _safe_json(text)})
@@ -275,7 +296,7 @@ def attach(
         except (LookupError, AttributeError):
             pass
 
-        text = await _call_via_http(http_client, op, arguments, headers)
+        text = await _call_via_http(http_client, op, tool_name, arguments, headers)
         return [mcp_types.TextContent(type="text", text=text)]
 
     session_manager = StreamableHTTPSessionManager(app=mcp_server, stateless=True)
