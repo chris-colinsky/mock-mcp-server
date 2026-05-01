@@ -29,6 +29,15 @@ paths:
       operationId: generate_report
       security:
         - BearerAuth: []
+      # Two-stage validation:
+      #   Stage 1 — `pattern` on the parameter schema below: standard OAS
+      #     regex check, runs before any application code. Rejects malformed
+      #     values like "garbage" or "2025-1" with 422 "string does not match
+      #     pattern".
+      #   Stage 2 — `x-mock-validate` block at the bottom: custom validators
+      #     that OAS keywords can't express. Runs after the regex passes,
+      #     before x-mock-dynamic fires. Used here to enforce the past-month
+      #     rule that the regex on its own can't.
       parameters:
         - name: report_month
           in: query
@@ -36,6 +45,9 @@ paths:
           description: Report month in YYYY-MM format (e.g., '2025-06')
           schema:
             type: string
+            # Stage 1: format check. `^\d{4}-\d{2}$` accepts any 4-digit-year
+            # plus any 2-digit-month (including 13-99); the calendar-validity
+            # and past-month rules live in stage 2.
             pattern: '^\d{4}-\d{2}$'
             title: Report Month
             description: Report month in YYYY-MM format (e.g., '2025-06')
@@ -49,6 +61,15 @@ paths:
             title: Use Preview Db
             description: Whether to use preview database instead of production
 
+      # Stage 2: `past_month_utc` is a built-in custom validator defined in
+      # app/validators.py. It parses the value as YYYY-MM and rejects:
+      #   - non-strings or unparseable dates (e.g. "2025-13" — passes the
+      #     regex, fails calendar validation) → 422 "must be a valid YYYY-MM date"
+      #   - the current UTC month and anything later → 422 "must be a past month..."
+      # The exception's own message is what reaches the client; the
+      # `message:` field below is a fallback for cases where a validator
+      # doesn't carry one (none of the past_month_utc paths apply, but we
+      # leave it as documentation of the rule).
       x-mock-validate:
         - field: report_month
           type: past_month_utc
