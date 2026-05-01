@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-01
+
 ### Changed (breaking — file paths)
 
 - **`configs/terravita-sop.yaml` → `configs/inventory-briefing.yaml`.**
@@ -211,6 +213,7 @@ mock server is described by an OpenAPI 3.1 YAML profile under `configs/`.
   talks MCP directly via the lower-level `mcp` SDK. No more monkey-patching
   or dynamic Pydantic-model generation.
 
-[Unreleased]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/chris-colinsky/mock-mcp-server/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/chris-colinsky/mock-mcp-server/releases/tag/v0.1.0
